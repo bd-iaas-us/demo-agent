@@ -146,12 +146,16 @@ def main(args: ScriptArguments):
                 traj_dir=traj_dir,
                 return_type="info_trajectory",
             )
+
             save_predictions(traj_dir, instance_id, info)
             patch_path = save_patch(traj_dir, instance_id, info)
             if args.actions.open_pr and should_open_pr(args, info, token=env._github_token):
                 env.open_pr(trajectory=trajectory)
             if args.actions.apply_patch_locally and patch_path is not None and env.record["repo_type"] == "local":
                 apply_patch(Path(args.environment.repo_path), patch_file=patch_path)
+            #outer layer will read this info and create a PR on github.
+            return info
+            
 
         except KeyboardInterrupt:
             logger.info("Exiting InterCode environment...")

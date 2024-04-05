@@ -223,8 +223,10 @@ class timeout:
     def __enter__(self):
         signal.signal(signal.SIGALRM, self.handle_timeout)
         signal.alarm(self.seconds)
+        pass
 
     def __exit__(self, type, value, traceback):
+        pass
         signal.alarm(0)
 
 
@@ -263,15 +265,15 @@ def _get_non_persistent_container(ctr_name: str, image_name: str) -> Tuple[subpr
         text=True,
         bufsize=1, # line buffered
     )
-    time.sleep(START_UP_DELAY)
+    time.sleep(START_UP_DELAY+2)
     # try to read output from container setup (usually an error), timeout if no output
-    try:
-        with timeout(seconds=2):
-            output = container.stdout.read()
-            if output:
-                logger.error(f"Unexpected container setup output: {output}")
-    except TimeoutError:
-        pass
+    # try:
+    #     with timeout(seconds=2):
+    #         output = container.stdout.read()
+    #         if output:
+    #             logger.error(f"Unexpected container setup output: {output}")
+    # except TimeoutError:
+    #     pass
     return container, {"1", }  # bash PID is always 1 for non-persistent containers
 
 
@@ -319,15 +321,15 @@ def _get_persistent_container(ctr_name: str, image_name: str, persistent: bool =
         text=True,
         bufsize=1, # line buffered
     )
-    time.sleep(START_UP_DELAY)
+    time.sleep(START_UP_DELAY+2)
     # try to read output from container setup (usually an error), timeout if no output
-    try:
-        with timeout(seconds=2):
-            output = container.stdout.read()
-            if output:
-                logger.error(f"Unexpected container setup output: {output}")
-    except TimeoutError:
-        pass
+    # try:
+    #     with timeout(seconds=2):
+    #         output = container.stdout.read()
+    #         if output:
+    #             logger.error(f"Unexpected container setup output: {output}")
+    # except TimeoutError:
+    #     pass
     # Get the process IDs of the container
     # There should be at least a head process and possibly one child bash process
     bash_pids, other_pids = get_background_pids(container_obj)
