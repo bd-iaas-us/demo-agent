@@ -42,15 +42,15 @@ class ScriptArguments(FlattenedAccess, FrozenSerializable):
     @property
     def run_name(self):
         """Generate a unique name for this run based on the arguments."""
-        model_name = args.agent.model.model_name.replace(":", "-")
-        data_stem = get_data_path_name(args.environment.data_path)
-        config_stem = Path(args.agent.config_file).stem
+        model_name = self.agent.model.model_name.replace(":", "-")
+        data_stem = get_data_path_name(self.environment.data_path)
+        config_stem = Path(self.agent.config_file).stem
 
-        temp = args.agent.model.temperature
-        top_p = args.agent.model.top_p
+        temp = self.agent.model.temperature
+        top_p = self.agent.model.top_p
 
-        per_instance_cost_limit = args.agent.model.per_instance_cost_limit
-        install_env = args.environment.install_environment
+        per_instance_cost_limit = self.agent.model.per_instance_cost_limit
+        install_env = self.environment.install_environment
 
         return (
             f"{model_name}__{data_stem}__{config_stem}__t-{temp:.2f}__p-{top_p:.2f}"
@@ -113,7 +113,11 @@ def main(args: ScriptArguments):
                 traj_dir=traj_dir,
                 return_type="info",
             )
+
             save_predictions(traj_dir, instance_id, info)
+            #outer layer will read this info and create a PR on github.
+            return info
+            
 
         except KeyboardInterrupt:
             logger.info("Exiting InterCode environment...")
@@ -218,6 +222,5 @@ if __name__ == "__main__":
         return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
     yaml.add_representer(str, multiline_representer)
-
-    args = parse(ScriptArguments, default=defaults, add_config_path_arg=False)
-    main(args)
+    self = parse(ScriptArguments, default=defaults, add_config_path_arg=False)
+    main(self)
