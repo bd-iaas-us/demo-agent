@@ -13,14 +13,21 @@ from lark_oapi.api.im.v1 import *
 
 from lark_config import *
 
+from openai import BadRequestError, OpenAI
+import config
+
 
 app = Flask(__name__)
 
-client = lark_oapi.Client.builder() \
+larkClient = lark_oapi.Client.builder() \
     .app_id(APP_ID) \
     .app_secret(APP_SECRET) \
     .log_level(lark_oapi.LogLevel.DEBUG) \
     .build()
+
+
+cfg = config.Config(os.path.join(os.getcwd(), "keys.cfg"))
+openAIClient = OpenAI(api_key=cfg["OPENAI_API_KEY"])    
 
 #webhook secret is set in github website
 
@@ -84,7 +91,7 @@ def lark_send_message(chatId, msg):
 					  .build()) \
 		.build()
 
-    resp = client.im.v1.message.create(req)
+    resp = larkClient.im.v1.message.create(req)
 
     if not resp.success():
         lark_oapi.logger.error(
@@ -100,9 +107,19 @@ def handle_lark(event):
     msg = json.loads(content)['text']
     print(msg)
 
+    # pass the issue url to swe-agent
     # magic(msg)
+
+    response = openAIClient.chat.completions.create(
+        messages=[{"role": "user", "content": msg}],
+        model='gpt-3.5-turbo',
+        temperature=0.0,
+        max_tokens=512,
+        n=1,
+        stop=None
+    )    
     
-    lark_send_message(message['chat_id'], "sent to LLM")
+    lark_send_message(message['chat_id'], response.choices[0].message.content)
 
 @app.route('/lark', methods=['POST'])
 def lark():
