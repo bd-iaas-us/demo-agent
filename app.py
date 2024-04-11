@@ -8,7 +8,19 @@ import time
 from magic import magic
 import os
 
+import lark_oapi
+from lark_oapi.api.im.v1 import *
+
+from lark_config import *
+
+
 app = Flask(__name__)
+
+client = lark_oapi.Client.builder() \
+    .app_id(APP_ID) \
+    .app_secret(APP_SECRET) \
+    .log_level(lark_oapi.LogLevel.DEBUG) \
+    .build()
 
 #webhook secret is set in github website
 
@@ -59,5 +71,50 @@ def webhook():
     else:
         return jsonify({'error': 'Invalid signature'}), 403
 
+
+def lark_send_message(chatId, msg):
+    reply = {"text": msg}
+
+    req = CreateMessageRequest.builder() \
+		.receive_id_type("chat_id") \
+		.request_body(CreateMessageRequestBody.builder()
+					  .receive_id(chatId)
+					  .msg_type("text")
+					  .content(json.dumps(reply))
+					  .build()) \
+		.build()
+
+    resp = client.im.v1.message.create(req)
+
+    if not resp.success():
+        lark_oapi.logger.error(
+			f"client.im.v1.message.create failed, code: {resp.code}, msg: {resp.msg}, log_id: {resp.get_log_id()}")
+        return {}
+
+    lark_oapi.logger.info(lark_oapi.JSON.marshal(resp.data, indent=4))
+
+def handle_lark(event):
+    # print(event)
+    message = event['message']
+    content = message['content']
+    msg = json.loads(content)['text']
+    print(msg)
+
+    # magic(msg)
+    
+    lark_send_message(message['chat_id'], "sent to LLM")
+
+@app.route('/lark', methods=['POST'])
+def lark():
+    data = request.data    
+
+    # challenge = json.loads(data.decode('utf-8'))['challenge']
+    # resp['challenge'] = {"challenge": challenge}
+
+    event = json.loads(data.decode('utf-8'))['event']
+    threading.Thread(target=handle_lark, args=(event,)).start()
+
+    return {}, 200   
+
 if __name__ == '__main__':
-    app.run(debug=False, host="0.0.0.0", port=8080, threaded=True)
+    app.run(debug=True, host="0.0.0.0", port=8080, threaded=True)
