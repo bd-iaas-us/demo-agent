@@ -18,10 +18,13 @@ from pathlib import Path
 from subprocess import PIPE, STDOUT
 from typing import Tuple
 
+import gitlab
+
 LOGGER_NAME = "intercode"
 START_UP_DELAY = 5
 TIMEOUT_DURATION = 25
 GITHUB_ISSUE_URL_PATTERN = re.compile(r'github\.com\/(.*?)\/(.*?)\/issues\/(\d+)')
+GITLAB_ISSUE_URL_PATTERN = re.compile(r'code\.byted\.org\/(.*?)\/(.*?)\/issues\/(\d+)')
 
 logger = logging.getLogger(LOGGER_NAME)
 
@@ -33,11 +36,21 @@ def get_data_path_name(data_path: str):
     if match:
         owner, repo, issue_number = match.groups()
         return f"{owner}__{repo}"
+
+    # gitlab
+    match = GITLAB_ISSUE_URL_PATTERN.search(data_path)
+    if match:
+        owner, repo, issue_number = match.groups()
+        return f"{owner}__{repo}"
+
     return Path(data_path).stem
 
 
 def is_from_github_url(data_path: str):
     return GITHUB_ISSUE_URL_PATTERN.search(data_path) is not None
+
+def is_from_gitlab_url(data_path: str):
+    return GITLAB_ISSUE_URL_PATTERN.search(data_path) is not None    
 
 
 def copy_file_to_container(container, contents, container_path):
@@ -311,6 +324,25 @@ def get_instances(file_path: str, base_commit: str = None, split: str = None, to
             record["problem_statement"] = text
             record["instance_id"] = f"{owner}__{repo}-i{issue_number}"
             return [record,]
+    elif is_from_gitlab_url(file_path):
+        gl_token = os.environ.get("GITLAB_TOKEN", None)
+        gl_server='https://code.byted.org'
+        gl = gitlab.Gitlab(gl_server, private_token=gl_token)
+        match = GITLAB_ISSUE_URL_PATTERN.search(file_path)
+        if match:
+            owner, repo, issue_number = match.groups()
+            record = dict()
+            issue = gl.issues.list(iids=[issue_number])[0]
+            title = issue.title if issue.title else ""
+            body = issue.description if issue.description else ""
+            text = f"{title}\n{body}\n"
+            record["repo"] = f"{owner}/{repo}"
+            record["base_commit"] = base_commit if base_commit else get_commit(api, owner, repo, base_commit).sha
+            record["version"] = record["base_commit"][:7]
+            record["problem_statement"] = text
+            record["instance_id"] = f"{owner}__{repo}-i{issue_number}"
+            return [record,]            
+
     elif base_commit is not None:
         raise ValueError("base_commit must be None if data_path is not a github issue url")
 

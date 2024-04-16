@@ -19,6 +19,7 @@ from sweagent.environment.utils import (
     get_container,
     get_instances,
     is_from_github_url,
+    is_from_gitlab_url,
     read_with_timeout,
     LOGGER_NAME,
 )
@@ -70,6 +71,7 @@ class SWEEnv(gym.Env):
         self.persistent = args.container_name is not None
         self.returncode = None
         self.is_from_github_url = is_from_github_url(args.data_path)
+        self.is_from_gitlab_url = is_from_gitlab_url(args.data_path)
         if not self.args.verbose:
             self.logger.disabled = True
 
@@ -90,6 +92,9 @@ class SWEEnv(gym.Env):
         ):
             self.cfg = config.Config(os.path.join(os.getcwd(), "keys.cfg"))
             self.token = self.cfg.get("GITHUB_TOKEN", "git")
+        
+        self.gl_token = os.environ.get("GITLAB_TOKEN", None)
+
 
         # Load Task Instances
         self.data_path = self.args.data_path
@@ -141,11 +146,18 @@ class SWEEnv(gym.Env):
         if repo_name not in folders:
             if not self.args.no_mirror and not self.is_from_github_url:
                 self.logger.info(f"{repo_name} not found in container, cloning...")
-                self.communicate_with_handling(
-                    input=f"git clone https://{self.token}@github.com/swe-bench/{repo_name}.git",
-                    error_msg="Failed to clone repository from mirror",
-                    timeout_duration=LONG_TIMEOUT,
-                )
+                if self.is_from_gitlab_url:
+                    self.communicate_with_handling(
+                        input=f"git clone https://jingxin.pan:{self.gl_token}@code.byted.org/{self.record['repo']}.git {repo_name}",
+                        error_msg="Failed to clone repository from mirror",
+                        timeout_duration=LONG_TIMEOUT,
+                    )                    
+                else:
+                    self.communicate_with_handling(
+                        input=f"git clone https://{self.token}@github.com/swe-bench/{repo_name}.git",
+                        error_msg="Failed to clone repository from mirror",
+                        timeout_duration=LONG_TIMEOUT,
+                    )
             else:
                 logger.info(f"Trying to clone from non-mirror...")
                 self.communicate_with_handling(
@@ -199,9 +211,9 @@ class SWEEnv(gym.Env):
 
         # Call install environment helper function if specified
         if self.install_environment:
-            if self.is_from_github_url:
+            if self.is_from_github_url or self.is_from_gitlab_url:
                 logger.warning((
-                    "install_environment is set to True, but the data path is a GitHub URL. "
+                    "install_environment is set to True, but the data path is a GitHub or GitLab URL. "
                     "Skipping conda environment installation."
                     ))
             else:
